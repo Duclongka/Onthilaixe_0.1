@@ -1,0 +1,6 @@
+{
+  "name": "Sát Hạch Lái Xe 600 Câu",
+  "description": "Ứng dụng ôn luyện lý thuyết sát hạch lái xe cơ giới đường bộ chuẩn 600 câu hỏi mới nhất của Bộ Công An, mô phỏng phòng thi thật với cơ sở dữ liệu SQLite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
