@@ -188,7 +188,7 @@ export default function App() {
             Hệ thống Ôn luyện & Sát hạch Lý thuyết Lái xe Cơ giới Đường bộ
           </p>
           <p>
-            Dựa trên chuẩn 600 câu hỏi Cục Cảnh sát Giao thông - Bộ Công An · Luật Trật tự, an toàn giao thông đường bộ.
+            Dựa trên chuẩn 600 câu hỏi Cục Cảnh sát Giao thông - Bộ Công An · Phát triển bởi Loong Lee 2026
           </p>
         </div>
       </footer>

@@ -10,7 +10,10 @@ import {
   AlertTriangle,
   Send,
   HelpCircle,
-  FileCheck
+  FileCheck,
+  Move,
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 
 interface ExamScreenProps {
@@ -35,6 +38,12 @@ export const ExamScreen: React.FC<ExamScreenProps> = ({
   const [secondsRemaining, setSecondsRemaining] = useState(config.durationMinutes * 60);
   const [isSubmittingModalOpen, setIsSubmittingModalOpen] = useState(false);
   const [startTime] = useState<number>(Date.now());
+
+  // Draggable floating bubble state
+  const [bubblePos, setBubblePos] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isBubbleCollapsed, setIsBubbleCollapsed] = useState(false);
 
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
@@ -88,6 +97,54 @@ export const ExamScreen: React.FC<ExamScreenProps> = ({
     onSubmitExam(userAnswers, timeSpent);
   }, [userAnswers, startTime, onSubmitExam]);
 
+  // Touch and Mouse Dragging for Floating Timer Bubble
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragOffset({
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top
+    });
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    const newX = Math.max(8, Math.min(window.innerWidth - 150, touch.clientX - dragOffset.x));
+    const newY = Math.max(70, Math.min(window.innerHeight - 70, touch.clientY - dragOffset.y));
+    setBubblePos({ x: newX, y: newY });
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag when clicking the bubble or drag handle
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+    setIsDragging(true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const newX = Math.max(8, Math.min(window.innerWidth - 150, moveEvent.clientX - (e.clientX - rect.left)));
+      const newY = Math.max(70, Math.min(window.innerHeight - 70, moveEvent.clientY - (e.clientY - rect.top)));
+      setBubblePos({ x: newX, y: newY });
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -124,81 +181,138 @@ export const ExamScreen: React.FC<ExamScreenProps> = ({
 
   return (
     <div className="relative min-h-screen">
-      {/* 1. FLOATING BUBBLE COUNTDOWN TIMER (Luôn hiển thị ở góc phải trên màn hình khi vuốt/cuộn) */}
+      {/* 1. FLOATING DRAGGABLE BUBBLE COUNTDOWN TIMER (Có thể kéo thả di chuyển tới bất kỳ vị trí nào trên màn hình) */}
       <aside
         aria-label="Đồng hồ đếm ngược thời gian thi"
-        className="fixed top-20 right-3 sm:right-6 z-50 pointer-events-auto"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        style={
+          bubblePos
+            ? { left: `${bubblePos.x}px`, top: `${bubblePos.y}px` }
+            : undefined
+        }
+        className={`fixed z-50 select-none cursor-grab active:cursor-grabbing transition-shadow ${
+          !bubblePos ? 'bottom-20 right-4 sm:bottom-auto sm:top-32 sm:right-6' : ''
+        }`}
       >
-        <div
-          className={`flex items-center gap-2.5 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-full shadow-2xl backdrop-blur-md transition-all duration-300 border select-none group ${
-            isTimeCritical
-              ? 'bg-red-600/95 border-red-400 text-white animate-pulse ring-2 ring-red-400 shadow-red-500/50'
-              : 'bg-slate-900/90 hover:bg-slate-900 border-slate-700 text-white shadow-slate-900/40 ring-1 ring-white/10'
-          }`}
-          title="Thời gian làm bài thi còn lại"
-        >
-          {/* Animated pulsing dot / clock */}
-          <div className="relative flex items-center justify-center">
-            <span
-              className={`absolute w-3 h-3 rounded-full opacity-75 animate-ping ${
-                isTimeCritical ? 'bg-red-300' : 'bg-emerald-400'
-              }`}
-            />
-            <Clock
-              className={`w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 ${
-                isTimeCritical ? 'text-white' : 'text-emerald-400'
-              }`}
-            />
+        {isBubbleCollapsed ? (
+          <div
+            onClick={() => setIsBubbleCollapsed(false)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-xl border cursor-pointer ${
+              isTimeCritical ? 'bg-red-600 border-red-400 text-white' : 'bg-slate-900 border-slate-700 text-white'
+            }`}
+            title="Bấm để mở rộng đồng hồ"
+          >
+            <Clock className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-mono text-xs font-bold">{timeString}</span>
+            <Maximize2 className="w-3 h-3 opacity-60 ml-0.5" />
           </div>
+        ) : (
+          <div
+            className={`flex items-center gap-2 pl-3 pr-2.5 py-1.5 sm:py-2 rounded-full shadow-2xl backdrop-blur-md border transition-all duration-300 ${
+              isTimeCritical
+                ? 'bg-red-600/95 border-red-400 text-white animate-pulse ring-2 ring-red-400 shadow-red-500/50'
+                : 'bg-slate-900/95 hover:bg-slate-900 border-slate-700 text-white shadow-slate-900/40 ring-1 ring-white/10'
+            }`}
+          >
+            {/* Drag Handle Icon */}
+            <div className="flex items-center opacity-60 hover:opacity-100 cursor-grab" title="Kéo để di chuyển đồng hồ">
+              <Move className="w-3.5 h-3.5" />
+            </div>
 
-          <div className="flex flex-col">
-            <span className="text-[9px] uppercase tracking-wider font-semibold opacity-75 leading-none">
-              Thời gian
-            </span>
-            <span className="font-mono font-black text-sm sm:text-base tracking-wider leading-none mt-0.5">
-              {timeString}
-            </span>
+            {/* Pulse Indicator */}
+            <div className="relative flex items-center justify-center">
+              <span
+                className={`absolute w-2.5 h-2.5 rounded-full opacity-75 animate-ping ${
+                  isTimeCritical ? 'bg-red-300' : 'bg-emerald-400'
+                }`}
+              />
+              <Clock
+                className={`w-4 h-4 shrink-0 ${
+                  isTimeCritical ? 'text-white' : 'text-emerald-400'
+                }`}
+              />
+            </div>
+
+            {/* Time readout */}
+            <div className="flex flex-col">
+              <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-semibold opacity-75 leading-none">
+                Thời gian
+              </span>
+              <span className="font-mono font-black text-xs sm:text-sm tracking-wider leading-none mt-0.5">
+                {timeString}
+              </span>
+            </div>
+
+            {/* Minimize button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsBubbleCollapsed(true);
+              }}
+              className="p-1 rounded-full hover:bg-white/20 transition-colors opacity-70 hover:opacity-100 ml-1"
+              title="Thu nhỏ bong bóng"
+            >
+              <Minimize2 className="w-3 h-3" />
+            </button>
           </div>
-        </div>
+        )}
       </aside>
 
-      {/* 2. STICKY FROZEN HEADER: Đóng băng thông tin thí sinh và nút Kết thúc phía trên */}
+      {/* 2. STICKY FROZEN HEADER: Đóng băng thông tin thí sinh, đồng hồ đếm ngược và nút Kết thúc phía trên */}
       <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-3">
           {/* Candidate Profile Frozen Bar */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-red-700 text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 shadow-xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-red-700 text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 shadow-xs">
               {candidate.licenseRank}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[105px] sm:max-w-[200px]">
                   {candidate.fullName}
                 </span>
-                <span className="text-[11px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 font-bold shrink-0">
+                <span className="text-[10px] sm:text-[11px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 font-bold shrink-0">
                   SBD: {candidate.sbd}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-500 truncate hidden sm:block">
+              <div className="text-[10px] sm:text-[11px] text-slate-500 truncate hidden sm:block">
                 {candidate.unit} · {candidate.course}
               </div>
             </div>
           </div>
 
-          {/* Quick Progress Indicator & Frozen End Button */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="hidden md:flex flex-col items-end text-xs mr-2">
-              <span className="text-slate-500">Tiến độ làm bài</span>
-              <span className="font-bold text-slate-900 font-mono">
+          {/* Integrated Frozen Timer & Frozen End Button (KHÔNG BAO GIỜ BỊ CHE KHUẤT) */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Progress (tablet & desktop) */}
+            <div className="hidden md:flex flex-col items-end text-xs mr-1">
+              <span className="text-slate-500 text-[10px]">Tiến độ</span>
+              <span className="font-bold text-slate-900 font-mono text-xs">
                 {answeredCount}/{totalQuestions} câu
               </span>
+            </div>
+
+            {/* Countdown timer embedded right in header */}
+            <div
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border font-mono font-bold text-xs sm:text-sm transition-colors ${
+                isTimeCritical
+                  ? 'bg-red-50 border-red-300 text-red-700 animate-pulse'
+                  : 'bg-slate-100 border-slate-300 text-slate-800'
+              }`}
+              title="Thời gian làm bài thi"
+            >
+              <Clock className={`w-3.5 h-3.5 ${isTimeCritical ? 'text-red-600' : 'text-slate-600'}`} />
+              <span>{timeString}</span>
             </div>
 
             {/* Frozen End / Submit Button */}
             <button
               type="button"
               onClick={() => setIsSubmittingModalOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white font-bold text-xs sm:text-sm px-3.5 sm:px-4 py-2 rounded-lg transition-colors shadow-xs active:scale-[0.98] cursor-pointer"
+              className="inline-flex items-center gap-1 sm:gap-1.5 bg-red-700 hover:bg-red-800 text-white font-bold text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors shadow-xs active:scale-[0.98] cursor-pointer shrink-0"
             >
               <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Kết thúc</span>
